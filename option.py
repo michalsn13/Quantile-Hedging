@@ -11,13 +11,13 @@ class Option:
         self.MC_setup = self.underlying.simulate_Q(self.MC_setup_max, self.T)
     def get_MC_price(self, X0_rel, t = 0, n_sims = 10000, method='crude'):
         if t > self.T:
-            raise Exception(f'{t}> {T}: Pricing moment cannot exceed option expirancy moment T={self.T}')
+            raise Exception(f'{t}> {self.T}: Pricing moment cannot exceed option expirancy moment T={self.T}')
         if self.MC_setup_max < n_sims:
             self.MC_setup_max = n_sims
             self.reset_MC_setup()
         discount = np.exp(-self.underlying.r * (self.T - t)) 
         B_full, sims_full = self.MC_setup
-        final_index = int((B_full.shape[1]-1) * (self.T - t) / self.T) + 1
+        final_index = round((B_full.shape[1]-1) * (self.T - t) / self.T) + 1
         B, sims = B_full[:n_sims,:final_index], sims_full[:n_sims,:final_index]
         payoffs = self.payoff_func(X0_rel * sims)
         payoffs_mean = payoffs.mean()
@@ -30,7 +30,7 @@ class Option:
         else:
             raise Exception(f'Method {method} not implemented...')
         return discount * price
-    def get_MC_delta(self, X0_rel, t = 0, n_sims = 10000, dX = 10, method='crude'):
+    def get_MC_delta(self, X0_rel, t = 0, n_sims = 10000, dX = 5, method='crude'):
         price_minus = self.get_MC_price(X0_rel-dX, t, n_sims, method)
         price_plus = self.get_MC_price(X0_rel+dX, t, n_sims, method)
         delta = (price_plus - price_minus)/(2*dX)
