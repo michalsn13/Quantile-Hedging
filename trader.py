@@ -5,32 +5,33 @@ class Trader:
     def __init__(self, money, delta = 0):
         self.money = money
         self.delta = delta
-    def update_portfolio(self, option, underlying_price, t, dt):
+    def update_portfolio(self, option, underlying_price, t):
         delta_curr = option.get_MC_delta(underlying_price, t)
-        self.money = self.money * np.exp(option.underlying.r * dt) - (delta_curr - self.delta) * underlying_price 
+        #delta_curr = norm.cdf((np.log(underlying_price/80) + (option.underlying.r + 0.5 * option.underlying.sigma **2) * (option.T - t))/np.sqrt(option.underlying.sigma **2 * (option.T - t)))
+        self.money = self.money - (delta_curr - self.delta) * underlying_price 
         self.delta = delta_curr
     def full_hedge(self, option, reality, update_freq = 1, verbose = False):
-        reality_flat = reality.flatten()
+        values_per_expirance = option.underlying.values_per_year * option.T
         money_historical = []
         delta_historical = []
-        update_days = np.arange(0, reality_flat.shape[0]-1, update_freq)
-        dt = option.T / (reality_flat.shape[0]-1)
-        for num in range(reality_flat.shape[0] - 1):
+        update_days = np.arange(0, values_per_expirance , update_freq)
+        for num in range(values_per_expirance):
             if num in update_days:
-                t = num * dt
-                self.update_portfolio(option, reality_flat[num], t, dt)
+                t = num / option.underlying.values_per_year
+                self.update_portfolio(option, float(reality[num]), t)
                 if verbose:
                     print(f'Portfolio update at t={t}! Current status\n\tMONEY: {self.money:.2f}\n\tUNDERLYING: {self.delta:.4f}')
+            self.money *= np.exp(option.underlying.r / option.underlying.values_per_year)
             money_historical.append(self.money)
             delta_historical.append(self.delta)
         #get rid of underlying
-        self.money = self.money * np.exp(option.underlying.r * dt) + self.delta * reality_flat[-1]
+        self.money = self.money + self.delta * float(reality[values_per_expirance])
         self.delta = 0
         delta_historical.append(self.delta)
         if verbose:
             print(f'All of held underlying {"sold" if self.delta >=0 else "repaid"}! Current status\n\tMONEY: {self.money:.2f}\n\tUNDERLYING: {self.delta:.4f}')
         #payoff
-        payoff = option.payoff_func(reality.T)[0]
+        payoff = float(option.payoff_func(reality))
         self.money -= payoff
         money_historical.append(self.money)
         if verbose:

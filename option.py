@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 class Option:
     def __init__(self, underlying, payoff_func, T, MC_setup_max = 10000):
@@ -17,15 +18,15 @@ class Option:
             self.reset_MC_setup()
         discount = np.exp(-self.underlying.r * (self.T - t)) 
         B_full, sims_full = self.MC_setup
-        final_index = round((B_full.shape[1]-1) * (self.T - t) / self.T) + 1
-        B, sims = B_full[:n_sims,:final_index], sims_full[:n_sims,:final_index]
+        final_index = round(self.underlying.values_per_year * (self.T - t) + 1)
+        B, sims = B_full.iloc[:n_sims,:final_index], sims_full.iloc[:n_sims,:final_index]
         payoffs = self.payoff_func(X0_rel * sims)
         payoffs_mean = payoffs.mean()
         if method == 'crude':
             price = payoffs_mean
         elif method == 'var_control':
-            MC_B = B[:,-1].mean()
-            rho = np.sum((payoffs-payoffs_mean)*(B[:,-1]-MC_B))/(payoffs.shape[0]-1)
+            MC_B = B.iloc[:,-1].mean()
+            rho = np.sum((payoffs-payoffs_mean)*(B.iloc[:,-1]-MC_B))/(payoffs.shape[0]-1)
             price = payoffs_mean - rho/1 * (MC_B - 0)
         else:
             raise Exception(f'Method {method} not implemented...')
