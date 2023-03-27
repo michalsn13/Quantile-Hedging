@@ -49,7 +49,7 @@ class Vanilla(Option):
             raise Exception(f'{t}> {self.T}: Pricing moment cannot exceed option expirancy moment T={self.T}')
         if t == self.T:
             if call:
-                return (X0_rel >= np.max(0,qh_boundary)) * np.max(X0_rel - self.K, 0)
+                return (X0_rel <= np.max(0,qh_boundary)) * np.max(X0_rel - self.K, 0)
             else:
                 return (X0_rel >= np.max(0,qh_boundary)) * np.max(self.K - X0_rel, 0)
         d1 = (np.log(X0_rel/self.K) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t))
@@ -60,11 +60,13 @@ class Vanilla(Option):
             d1_c = (np.log(X0_rel/qh_boundary) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t))
             d2_c = d1_c - self.underlying.sigma * np.sqrt(self.T - t)
             call_c = X0_rel * norm.cdf(d1_c) - qh_boundary * np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(d2_c)
+            put_c = qh_boundary * np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(-d2_c) - X0_rel * norm.cdf(-d1_c)         
             binary_call_c = np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(d2_c)
+            binary_put_c = np.exp(-self.underlying.r * (self.T - t)) * (1 - norm.cdf(d2_c))
             if self.call:
                 return call_K - call_c - (qh_boundary - self.K) * binary_call_c
             else:
-                return put_K + call_c - call_K - (self.K - qh_boundary) * binary_call_c  
+                return put_K - put_c - (self.K - qh_boundary) * binary_put_c  
         else:
             if self.call:
                 return call_K
@@ -81,11 +83,13 @@ class Vanilla(Option):
             d1_c = (np.log(X0_rel/qh_boundary) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t))
             d2_c = d1_c - self.underlying.sigma * np.sqrt(self.T - t)
             call_c = norm.cdf(d1_c)
+            put_c = norm.cdf(d1_c) - 1
             binary_call_c = np.exp(-self.underlying.r * (self.T - t))*norm.pdf(d2_c)/(self.underlying.sigma * X0_rel * np.sqrt(self.T - t))
+            binary_put_c = - binary_call_c
             if self.call:
                 return call_K - call_c - (qh_boundary - self.K) * binary_call_c
             else:
-                return put_K + call_c - call_K - (self.K - qh_boundary) * binary_call_c  
+                return put_K - put_c - (self.K - qh_boundary) * binary_put_c  
         else:
             if self.call:
                 return call_K
