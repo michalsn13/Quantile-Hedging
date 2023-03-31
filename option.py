@@ -49,24 +49,36 @@ class Vanilla(Option):
             raise Exception(f'{t}> {self.T}: Pricing moment cannot exceed option expirancy moment T={self.T}')
         if t == self.T:
             if call:
-                return (X0_rel <= np.max(0,qh_boundary)) * np.max(X0_rel - self.K, 0)
+                return (X.iloc[:,-1] <= c1) * (X.iloc[:,-1] >= c2) * np.max(X0_rel - self.K, 0)
             else:
-                return (X0_rel >= np.max(0,qh_boundary)) * np.max(self.K - X0_rel, 0)
+                return (X.iloc[:,-1] <= c1) * (X.iloc[:,-1] >= c2) * np.max(self.K - X0_rel, 0)
+        
         d1 = (np.log(X0_rel/self.K) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t))
         d2 = d1 - self.underlying.sigma * np.sqrt(self.T - t)
         call_K = X0_rel * norm.cdf(d1) - self.K * np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(d2)
         put_K = self.K * np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(-d2) - X0_rel * norm.cdf(-d1)
         if qh_boundary:
-            d1_c = (np.log(X0_rel/qh_boundary) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t))
-            d2_c = d1_c - self.underlying.sigma * np.sqrt(self.T - t)
-            call_c = X0_rel * norm.cdf(d1_c) - qh_boundary * np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(d2_c)
-            put_c = qh_boundary * np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(-d2_c) - X0_rel * norm.cdf(-d1_c)         
-            binary_call_c = np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(d2_c)
-            binary_put_c = np.exp(-self.underlying.r * (self.T - t)) * (1 - norm.cdf(d2_c))
+            call_cs = []
+            put_cs = []
+            binary_call_cs = []
+            binary_put_cs = []
+            for c in qh_boundary:
+                if not c:
+                    call_cs.append(0)
+                    put_cs.append(0)
+                    binary_call_cs.append(0)
+                    binary_put_cs.append(0)
+                else:
+                    d1_c = (np.log(X0_rel/c) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t))
+                    d2_c = d1_c - self.underlying.sigma * np.sqrt(self.T - t)
+                    call_cs.append(X0_rel * norm.cdf(d1_c) - c * np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(d2_c))
+                    put_cs.append(c * np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(-d2_c) - X0_rel * norm.cdf(-d1_c))
+                    binary_call_cs.append(np.exp(-self.underlying.r * (self.T - t)) * norm.cdf(d2_c))
+                    binary_put_cs.append(np.exp(-self.underlying.r * (self.T - t)) * (1 - norm.cdf(d2_c)))
             if self.call:
-                return call_K - call_c - (qh_boundary - self.K) * binary_call_c
+                return call_K - call_cs[0] - (qh_boundary[0] - self.K) * binary_call_cs[0] + call_cs[1] + (qh_boundary[1] - self.K) * binary_call_cs[1]
             else:
-                return put_K - put_c - (self.K - qh_boundary) * binary_put_c  
+                return put_K - put_cs[1] - (self.K - qh_boundary[1]) * binary_put_cs[1] + put_cs[0] + (self.K  - qh_boundary[0]) * binary_put_cs[0]
         else:
             if self.call:
                 return call_K
@@ -80,16 +92,27 @@ class Vanilla(Option):
         call_K = norm.cdf(d1)
         put_K = norm.cdf(d1) - 1
         if qh_boundary:
-            d1_c = (np.log(X0_rel/qh_boundary) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t))
-            d2_c = d1_c - self.underlying.sigma * np.sqrt(self.T - t)
-            call_c = norm.cdf(d1_c)
-            put_c = norm.cdf(d1_c) - 1
-            binary_call_c = np.exp(-self.underlying.r * (self.T - t))*norm.pdf(d2_c)/(self.underlying.sigma * X0_rel * np.sqrt(self.T - t))
-            binary_put_c = - binary_call_c
+            call_cs = []
+            put_cs = []
+            binary_call_cs = []
+            binary_put_cs = []
+            for c in qh_boundary:
+                if not c:
+                    call_cs.append(0)
+                    put_cs.append(0)
+                    binary_call_cs.append(0)
+                    binary_put_cs.append(0)
+                else:
+                    d1_c = (np.log(X0_rel/c) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t)) 
+                    d2_c = d1_c - self.underlying.sigma * np.sqrt(self.T - t)
+                    call_cs.append(norm.cdf(d1_c))
+                    put_cs.append(norm.cdf(d1_c) - 1)
+                    binary_call_cs.append(np.exp(-self.underlying.r * (self.T - t))*norm.pdf(d2_c)/(self.underlying.sigma * X0_rel * np.sqrt(self.T - t)))
+                    binary_put_cs.append(- np.exp(-self.underlying.r * (self.T - t))*norm.pdf(d2_c)/(self.underlying.sigma * X0_rel * np.sqrt(self.T - t)))
             if self.call:
-                return call_K - call_c - (qh_boundary - self.K) * binary_call_c
+                return call_K - call_cs[0] - (qh_boundary[0] - self.K) * binary_call_cs[0] + call_cs[1] + (qh_boundary[1] - self.K) * binary_call_cs[1]
             else:
-                return put_K - put_c - (self.K - qh_boundary) * binary_put_c  
+                return put_K - put_cs[1] - (self.K - qh_boundary[1]) * binary_put_cs[1] + put_cs[0] + (self.K  - qh_boundary[0]) * binary_put_cs[0]
         else:
             if self.call:
                 return call_K
