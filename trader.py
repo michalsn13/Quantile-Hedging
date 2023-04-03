@@ -17,13 +17,13 @@ class Trader:
         self.delta = delta_curr
     def simulate_hedging(self, option, reality, update_freq = 1, limited_capital = False, verbose = False):
         if limited_capital:
-            new_payoff_func,success_prob, qh_boundary = payoff_from_v0(option, self.money, float(reality[0]))
+            new_payoff_func,objective_func, qh_boundary = payoff_from_v0(option, self.money, float(reality[0]))
             if verbose:
-                print(f'Quantile Hedging with V0={self.money:.2f} should result in p = {success_prob:.4} probability of success')
+                print(f'Quantile Hedging with V0={self.money:.2f} should result success probability = {objective_func[0]:.4} and success ratio = {objective_func[1]:.44}')
             old_payoff_func = option.payoff_func
             setattr(option, 'payoff_func', new_payoff_func)
         else:
-            success_prob = 1
+            objective_func = (1,1)
             qh_boundary = None
         values_per_expirance = option.underlying.values_per_year * option.T
         money_historical = []
@@ -53,4 +53,4 @@ class Trader:
         if verbose:
             print(f'Payoff of {payoff:.2f} paid to the option owner! Current status\n\tMONEY: {self.money:.2f}\n\tUNDERLYING: {self.delta:.4f}')
         
-        return money_historical, delta_historical, success_prob
+        return money_historical, delta_historical, objective_func
