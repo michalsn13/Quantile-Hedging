@@ -21,7 +21,7 @@ def payoff_from_v0(option, init_capital, X0, n_sims = 10000):
     
     hedge_prob = init_capital / BS_Price
     old_payoff = option.payoff_func
-    if option.underlying.mu <= option.underlying.sigma**2:
+    if (option.underlying.mu - option.underlying.r) <= option.underlying.sigma**2:
         index = (full['dQstar_dP'].cumsum() / n_sims <= hedge_prob).sum()
         success_prob = index/n_sims
         if index == 0:
@@ -80,7 +80,7 @@ def payoff_from_prob(option, success_prob, X0, n_sims = 10000):
     full = full.sort_values('dP_dQstar', ascending = False)
     full['dQstar_dP'] = 1 / full['dP_dQstar']
     old_payoff = option.payoff_func
-    if option.underlying.mu <= option.underlying.sigma**2:
+    if (option.underlying.mu - option.underlying.r) <= option.underlying.sigma**2:
         index = round(success_prob * n_sims)
         init_capital = full['dQstar_dP'].iloc[:index].sum()/n_sims * BS_Price
         c = (X0 * full['X']).iloc[index - 1]

@@ -44,7 +44,7 @@ class Vanilla(Option):
         else:
             def payoff_func(X):
                 return np.maximum(K - X.iloc[:,-1], 0)
-        self.__init__(self, underlying, payoff_func, T)
+        Option.__init__(self, underlying, payoff_func, T)
     def get_price(self, X0_rel, t = 0, qh_boundary = None):
         if t > self.T:
             raise Exception(f'{t}> {self.T}: Pricing moment cannot exceed option expirancy moment T={self.T}')
@@ -130,8 +130,8 @@ class Vanilla_on_NonTraded:
         self.MC_setup_max = MC_setup_max
         self.MC_setup = self.underlying_nt.simulate_together_Q(MC_setup_max, self.T)
         
-    def payoff_special(self, X_t, X_nt, m):   
-        X0_t, X0_nt = X_t.iloc[0,0], X_nt.iloc[0,0]
+    def payoff_special(self, X_t, X0_nt, m):   
+        X0_t = X_t.iloc[0,0]
         mu_t, sigma_t = self.underlying_nt.underlying_t.mu, self.underlying_nt.underlying_t.sigma
         mu_nt, sigma_nt = self.underlying_nt.mu, self.underlying_nt.sigma
         B_T = (np.log(X_t.iloc[:,-1] / X0_t) - (mu_t - 0.5 * sigma_t**2)*self.T) / sigma_t
@@ -144,44 +144,44 @@ class Vanilla_on_NonTraded:
         delta = b**2 - 4 * a * c
         sign = (2 * self.call * 1 - 1)
         x = sign * np.exp(( -b + sign * np.sqrt(abs(delta))) / (2 * a )) - sign * self.K
-        plt.scatter(X_t.iloc[:,-1], x)
-        plt.show()
+        #plt.scatter(X_t.iloc[:,-1], x)
+        #plt.show()
         x = x * (x >= 0) * (1 if self.call else (x < self.K))
-        plt.scatter(X_t.iloc[:,-1], x)
-        plt.show()
+        #plt.scatter(X_t.iloc[:,-1], x)
+        #plt.show()
         if self.call:
             cdf_x = norm.cdf((np.log((self.K + x) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
             cdf_delta = norm.cdf((np.log((self.K + 0.01) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
         else:
             cdf_x = 1 - norm.cdf((np.log((self.K - x) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
-            cdf_delta = 1 - norm.cdf((np.log((self.K - 0.01) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))            
+            cdf_delta = 1 - norm.cdf((np.log((self.K - 0.0001) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))            
         diff_x = dP_dQ * cdf_x - m * x
-        diff_delta = dP_dQ * cdf_delta - m * 0.01
-        print((diff_delta <= diff_x).sum())
-        plt.scatter(X_t.iloc[:,-1], x * (diff_delta <= diff_x))
-        plt.show()
+        diff_delta = dP_dQ * cdf_delta - m * 0.0001
+        #plt.scatter(X_t.iloc[:,-1], x * (diff_delta <= diff_x))
+        #plt.show()
         return x * (diff_delta <= diff_x) * (delta >= 0)
 
     def reset_MC_setup(self):
         self.MC_setup = self.underlying_t.simulate_Q(self.MC_setup_max, self.T)
-    def get_MC_price(self, X0_rel, t = 0, n_sims = 100000):
+    def get_MC_price(self, X0_rel_t, X0_rel_nt, m, t = 0, n_sims = 100000):
         if t > self.T:
             raise Exception(f'{t}> {self.T}: Pricing moment cannot exceed option expirancy moment T={self.T}')
         if self.MC_setup_max < n_sims:
             self.MC_setup_max = n_sims
             self.reset_MC_setup()
-        discount = np.exp(-self.underlying.r * (self.T - t)) 
-        B_full, sims_full = self.MC_setup
-        final_index = round(self.underlying.values_per_year * (self.T - t) + 1)
-        B, sims = B_full.iloc[:n_sims,:final_index], sims_full.iloc[:n_sims,:final_index]
-        payoffs = self.payoff_func(X0_rel * sims)
+        discount = np.exp(-self.underlying_nt.r * (self.T - t)) 
+        [B_full_t, sims_full_t],  [B_full_nt, sims_full_nt] = self.MC_setup
+        final_index = round(self.underlying_nt.values_per_year * (self.T - t) + 1)
+        B_t, sims_t = B_full_t.iloc[:n_sims,:final_index], sims_full_t.iloc[:n_sims,:final_index]
+        #B_nt, sims_nt = B_full_nt.iloc[:n_sims,:final_index], sims_full_nt.iloc[:n_sims,:final_index]
+        payoffs = self.payoff_special((X0_rel_t * sims_t), X0_rel_nt, m)
         payoffs_mean = payoffs.mean()
-        MC_B = B.iloc[:,-1].mean()
-        rho = np.sum((payoffs-payoffs_mean)*(B.iloc[:,-1]-0))/(payoffs.shape[0]-1)
+        MC_B = B_t.iloc[:,-1].mean()
+        rho = np.sum((payoffs-payoffs_mean)*(B_t.iloc[:,-1]-0))/(payoffs.shape[0]-1)
         price = payoffs_mean - rho/self.T * (MC_B - 0)
         return discount * price
-    def get_MC_delta(self, X0_rel, t = 0, dX = 1, n_sims = 100000):
-        price_minus = self.get_MC_price(X0_rel-dX, t, n_sims)
-        price_plus = self.get_MC_price(X0_rel+dX, t, n_sims)
+    def get_MC_delta(self, X0_rel_t, X0_rel_nt, t = 0, dX = 1, n_sims = 100000):
+        price_minus = self.get_MC_price(X0_rel-dX, X0_rel_nt, t, n_sims)
+        price_plus = self.get_MC_price(X0_rel+dX, X0_rel_nt, t, n_sims)
         delta = (price_plus - price_minus)/(2*dX)            
         
