@@ -21,7 +21,7 @@ def payoff_from_v0(option, init_capital, X0, n_sims = 10000):
     
     hedge_prob = init_capital / BS_Price
     old_payoff = option.payoff_func
-    if option.underlying.mu <= option.underlying.sigma**2:
+    if (option.underlying.mu - option.underlying.r) <= option.underlying.sigma**2:
         index = (full['dQstar_dP'].cumsum() / n_sims <= hedge_prob).sum()
         success_prob = index/n_sims
         if index == 0:
@@ -29,14 +29,19 @@ def payoff_from_v0(option, init_capital, X0, n_sims = 10000):
 
         c = (X0*full['X']).iloc[index - 1]
         if (c < (X0*full['X']).iloc[-1]) or (c > (X0*full['X']).iloc[0]):
+            X_fail = X.loc[(X0*X).iloc[:,-1] > c]
+            H = old_payoff((X0*X_fail))
+            VT_H = ((H - (BS_Price - init_capital) * np.exp(option.underlying.r * option.T))/H).sum() / X.shape[0]
             c1, c2 = c, 0
             def payoff_1A(X):
                 return old_payoff(X)*(X.iloc[:,-1] <= c)
         else:
+            X_fail = X.loc[(X0*X).iloc[:,-1] < c]
+            H = old_payoff((X0*X_fail))
+            VT_H = ((H - (BS_Price - init_capital) * np.exp(option.underlying.r * option.T))/H).sum() / X.shape[0]
             c1, c2 = 0, c
             def payoff_1A(X):
                 return old_payoff(X)*(X.iloc[:,-1] >= c)
-        return (payoff_1A, success_prob, (c1,c2))
     else:
         index1 = (full['dQstar_dP'].cumsum() / n_sims <= hedge_prob/2).sum()
         index2 = (full['dQstar_dP'][::-1].cumsum() / n_sims <= hedge_prob/2).sum()
@@ -47,10 +52,13 @@ def payoff_from_v0(option, init_capital, X0, n_sims = 10000):
         c1 = (X0*full['X']).iloc[(index1 - 1)]
         c2 = (X0*full['X']).iloc[-(index2 - 1)]
         c1, c2 = np.min([c1,c2]), np.max([c1,c2])
-        
+        X_fail = X.loc[((X0*X).iloc[:,-1] > c1) & ((X0*X).iloc[:,-1] < c2)]
+        H = old_payoff((X0*X_fail))
+        VT_H = ((H - (BS_Price - init_capital) * np.exp(option.underlying.r * option.T))/H).sum() / X.shape[0]
         def payoff_1A(X):
             return old_payoff(X)*np.maximum((X.iloc[:,-1] <= c1), (X.iloc[:,-1] >= c2))
-        return (payoff_1A, success_prob, (c1,c2))
+    success_ratio = success_prob + VT_H
+    return (payoff_1A, (success_prob, success_ratio), (c1,c2))
         
 
 def payoff_from_prob(option, success_prob, X0, n_sims = 10000):
@@ -72,7 +80,7 @@ def payoff_from_prob(option, success_prob, X0, n_sims = 10000):
     full = full.sort_values('dP_dQstar', ascending = False)
     full['dQstar_dP'] = 1 / full['dP_dQstar']
     old_payoff = option.payoff_func
-    if option.underlying.mu <= option.underlying.sigma**2:
+    if (option.underlying.mu - option.underlying.r) <= option.underlying.sigma**2:
         index = round(success_prob * n_sims)
         init_capital = full['dQstar_dP'].iloc[:index].sum()/n_sims * BS_Price
         c = (X0 * full['X']).iloc[index - 1]
