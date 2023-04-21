@@ -187,3 +187,38 @@ class Vanilla_on_NonTraded:
         price_plus = self.get_MC_price(X0_rel_t, X0_rel_nt + dX, t, n_sims)
         delta = (price_plus - price_minus)/(2*dX)            
         return delta
+
+    def set_m(self, V0, X0_t, X0_nt, precision=0.1, max_iterations=100):
+        m_curr_top = 0.2
+        m_curr_bot = 0.000001
+
+        i = 1
+
+        while self.get_MC_price(X0_t, X0_nt, m_curr_top) > V0:
+            if i > max_iterations:
+                raise Exception("Couldn't find m from given V0 during " + str(max_iterations) + " iterations")
+            m_curr_bot = m_curr_top
+            m_curr_top += 0.1
+            i += 1
+
+        m = (m_curr_top + m_curr_bot) / 2
+
+        while True:
+            if i > max_iterations:
+                raise Exception("Couldn't find m from given V0 during " + str(max_iterations) + " iterations")
+
+            V0_curr = self.get_MC_price(X0_t, X0_nt, m)
+
+            if abs(V0 - V0_curr) < precision:
+                self.m = m
+                break
+
+            elif V0_curr < V0:
+                m_curr_top = m
+                m = (m + m_curr_bot) / 2
+                i += 1
+
+            else:
+                m_curr_bot = m
+                m = (m_curr_top + m) / 2
+                i += 1

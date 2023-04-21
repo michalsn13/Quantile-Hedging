@@ -19,7 +19,7 @@ class Trader:
             delta_curr = option.get_MC_delta(underlying_price, t)
             self.money = self.money - (delta_curr - self.delta) * underlying_price 
         self.delta = delta_curr
-    def simulate_hedging(self, option, reality, update_freq = 1, mode = 'standard', recalculate_m = False, verbose = False):
+    def simulate_hedging(self, option, reality, update_freq = 1, mode = 'standard', recalculate_m = True, verbose = False):
         if mode == 'quantile_traded':
                 new_payoff_func,objective_func, qh_boundary = payoff_from_v0(option, self.money, float(reality[0]))
                 if verbose:
@@ -28,6 +28,7 @@ class Trader:
                 setattr(option, 'payoff_func', new_payoff_func)
         elif mode == 'quantile_nontraded':
             if recalculate_m:
+                option.set_m(V0 = self.money, X0_t = reality[0].iloc[0,0], X0_nt = reality[1].iloc[0,0])
                 old_m = option.m
                 ##funkcja
             objective_func = (1,1)
