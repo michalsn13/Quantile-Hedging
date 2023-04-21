@@ -136,7 +136,7 @@ class Vanilla_on_NonTraded:
         self.T = T
         self.MC_setup_max = MC_setup_max
         self.MC_setup = self.underlying.simulate_together_Q(MC_setup_max, self.T)
-        self.m = 1e-10
+        self.m = 1e-3
         
     def payoff_special(self, X_t, X0_nt):   
         X0_t = X_t.iloc[0,0]
@@ -152,21 +152,15 @@ class Vanilla_on_NonTraded:
         delta = b**2 - 4 * a * c
         sign = (2 * self.call * 1 - 1)
         x = sign * np.exp(( -b + sign * np.sqrt(abs(delta))) / (2 * a )) - sign * self.K
-        #plt.scatter(X_t.iloc[:,-1], x)
-        #plt.show()
         x = x * (x >= 0) * (1 if self.call else (x < self.K))
-        #plt.scatter(X_t.iloc[:,-1], x)
-        #plt.show()
         if self.call:
             cdf_x = norm.cdf((np.log((self.K + x) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
-            cdf_delta = norm.cdf((np.log((self.K + 0.01) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
+            cdf_delta = norm.cdf((np.log((self.K + 0.0001) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
         else:
             cdf_x = 1 - norm.cdf((np.log((self.K - x) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
             cdf_delta = 1 - norm.cdf((np.log((self.K - 0.0001) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))            
         diff_x = dP_dQ * cdf_x - self.m * x
         diff_delta = dP_dQ * cdf_delta - self.m * 0.0001
-        #plt.scatter(X_t.iloc[:,-1], x * (diff_delta <= diff_x))
-        #plt.show()
         return x * (diff_delta <= diff_x) * (delta >= 0)
 
     def reset_MC_setup(self):
@@ -179,7 +173,7 @@ class Vanilla_on_NonTraded:
             self.reset_MC_setup()
         discount = np.exp(-self.underlying.r * (self.T - t)) 
         [B_full_t, sims_full_t],  [B_full_nt, sims_full_nt] = self.MC_setup
-        final_index = round(self.underlying.values_per_year * (self.T - t) + 1)
+        final_index = int(round(self.underlying.values_per_year * (self.T - t) + 1))
         B_t, sims_t = B_full_t.iloc[:n_sims,:final_index], sims_full_t.iloc[:n_sims,:final_index]
         #B_nt, sims_nt = B_full_nt.iloc[:n_sims,:final_index], sims_full_nt.iloc[:n_sims,:final_index]
         payoffs = self.payoff_special((X0_rel_t * sims_t), X0_rel_nt)
