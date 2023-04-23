@@ -5,8 +5,10 @@ import matplotlib.pyplot as plt
 import scipy.integrate as integrate
 from scipy.optimize import root_scalar
 
+from underlying import Underlying, NonTradedUnderlying
+
 class Option:
-    def __init__(self, underlying, payoff_func, T, MC_setup_max = 10000):
+    def __init__(self, underlying: Underlying, payoff_func, T, MC_setup_max = 10000):
         self.underlying = underlying
         self.payoff_func = payoff_func
         self.T = T
@@ -37,7 +39,7 @@ class Option:
         return delta
     
 class Vanilla(Option):
-    def __init__(self, underlying, K, T, call):
+    def __init__(self, underlying: Underlying, K, T, call):
         self.K = K
         self.call = call
         if self.call:
@@ -124,7 +126,11 @@ class Vanilla(Option):
         
             
 class Vanilla_on_NonTraded:
+<<<<<<< HEAD
     def __init__(self, underlying, K, T, call, target_function = 1, MC_setup_max = 10000):
+=======
+    def __init__(self, underlying: NonTradedUnderlying, K, T, call, MC_setup_max = 10000):
+>>>>>>> 7f3b0e8 (coMMIT)
         self.underlying = underlying
         self.K = K
         self.call = call
@@ -138,9 +144,14 @@ class Vanilla_on_NonTraded:
         self.T = T
         self.MC_setup_max = MC_setup_max
         self.MC_setup = self.underlying.simulate_together_Q(MC_setup_max, self.T)
+<<<<<<< HEAD
         self.m = 1e-3
         self.target_function = target_function
 
+=======
+        self.m = 1e-5
+        
+>>>>>>> 7f3b0e8 (coMMIT)
     def payoff_special(self, X_t, X0_nt):   
         X0_t = X_t.iloc[0,0]
         mu_t, sigma_t = self.underlying.underlying_t.mu, self.underlying.underlying_t.sigma
