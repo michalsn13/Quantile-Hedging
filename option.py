@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 import matplotlib.pyplot as plt
+import scipy.integrate as integrate
+from scipy.optimize import root_scalar
 
 class Option:
     def __init__(self, underlying, payoff_func, T, MC_setup_max = 10000):
@@ -122,7 +124,7 @@ class Vanilla(Option):
         
             
 class Vanilla_on_NonTraded:
-    def __init__(self, underlying, K, T, call, MC_setup_max = 10000):
+    def __init__(self, underlying, K, T, call, target_function = 1, MC_setup_max = 10000):
         self.underlying = underlying
         self.K = K
         self.call = call
@@ -137,7 +139,8 @@ class Vanilla_on_NonTraded:
         self.MC_setup_max = MC_setup_max
         self.MC_setup = self.underlying.simulate_together_Q(MC_setup_max, self.T)
         self.m = 1e-3
-        
+        self.target_function = target_function
+
     def payoff_special(self, X_t, X0_nt):   
         X0_t = X_t.iloc[0,0]
         mu_t, sigma_t = self.underlying.underlying_t.mu, self.underlying.underlying_t.sigma
@@ -146,23 +149,67 @@ class Vanilla_on_NonTraded:
         r = self.underlying.r
         rho = self.underlying.rho
         dP_dQ = np.exp((mu_t - r) * B_T / sigma_t + (0.5 * self.T * ((mu_t - r) / sigma_t) ** 2))
-        a = 1
-        b = 2 * sigma_nt ** 2 * self.T * (1 - rho ** 2) - 2 * np.log(X0_nt) - 2 * mu_nt * self.T + sigma_nt ** 2 * self.T - 2 * rho * sigma_nt * B_T
-        c = np.log(self.m / dP_dQ  * sigma_nt * np.sqrt(2 * np.pi * self.T * (1 - rho ** 2))) * (2 * sigma_nt ** 2 * self.T * (1 - rho ** 2 )) + (-np.log(X0_nt) - mu_nt * self.T + sigma_nt ** 2 * self.T * 0.5 - rho * sigma_nt * B_T) ** 2 
-        delta = b**2 - 4 * a * c
-        sign = (2 * self.call * 1 - 1)
-        x = sign * np.exp(( -b + sign * np.sqrt(abs(delta))) / (2 * a )) - sign * self.K
-        x = x * (x >= 0) * (1 if self.call else (x < self.K))
-        if self.call:
-            cdf_x = norm.cdf((np.log((self.K + x) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
-            cdf_delta = norm.cdf((np.log((self.K + 0.0001) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
+        if self.target_function == 1:
+            a = 1
+            b = 2 * sigma_nt ** 2 * self.T * (1 - rho ** 2) - 2 * np.log(X0_nt) - 2 * mu_nt * self.T + sigma_nt ** 2 * self.T - 2 * rho * sigma_nt * B_T
+            c = np.log(self.m / dP_dQ  * sigma_nt * np.sqrt(2 * np.pi * self.T * (1 - rho ** 2))) * (2 * sigma_nt ** 2 * self.T * (1 - rho ** 2 )) + (-np.log(X0_nt) - mu_nt * self.T + sigma_nt ** 2 * self.T * 0.5 - rho * sigma_nt * B_T) ** 2 
+            delta = b**2 - 4 * a * c
+            sign = (2 * self.call * 1 - 1)
+            x = sign * np.exp(( -b + sign * np.sqrt(abs(delta))) / (2 * a )) - sign * self.K
+            x = x * (x >= 0) * (1 if self.call else (x < self.K))
+            if self.call:
+                cdf_x = norm.cdf((np.log((self.K + x) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
+                cdf_delta = norm.cdf((np.log((self.K + 0.0001) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
+            else:
+                cdf_x = 1 - norm.cdf((np.log((self.K - x) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
+                cdf_delta = 1 - norm.cdf((np.log((self.K - 0.0001) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))            
+            diff_x = dP_dQ * cdf_x - self.m * x
+            diff_delta = dP_dQ * cdf_delta - self.m * 0.0001
+            return x * (diff_delta <= diff_x) * (delta >= 0)
         else:
-            cdf_x = 1 - norm.cdf((np.log((self.K - x) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))
-            cdf_delta = 1 - norm.cdf((np.log((self.K - 0.0001) / X0_nt) - mu_nt * self.T + 0.5 * sigma_nt ** 2 * self.T - sigma_nt * rho * B_T)/ (sigma_nt * np.sqrt(self.T * (1 - rho ** 2))))            
-        diff_x = dP_dQ * cdf_x - self.m * x
-        diff_delta = dP_dQ * cdf_delta - self.m * 0.0001
-        return x * (diff_delta <= diff_x) * (delta >= 0)
+            def G_delta(x, mu_nt, sigma_nt, rho, B_T, K, T, X0_nt, dP_dQ, type):
+                def integrand(y, X0_nt, mu_nt, sigma_nt, rho, B_T, K, T, type):
+                    if type:
+                        return 1 / np.sqrt(np.pi * 2 * T) / (X0_nt * np.exp(mu_nt * T + sigma_nt * B_T * rho + np.sqrt(1 - rho ** 2) * sigma_nt * y - 0.5 * sigma_nt ** 2 * T) - K) * np.exp(y ** 2 / (-2 * T))
+                    else:
+                        return 1 / np.sqrt(np.pi * 2 * T) / ( K - X0_nt * np.exp(mu_nt * T + sigma_nt * B_T * rho + np.sqrt(1 - rho ** 2) * sigma_nt * y - 0.5 * sigma_nt ** 2 * T)) * np.exp(y ** 2 / (-2 * T))
+                if type:
+                    arg_inf = np.sqrt(100 * T)
+                    a = (np.log((K + x)/ X0_nt) - mu_nt * T + sigma_nt ** 2 * T * 0.5 - rho * sigma_nt * B_T) / (sigma_nt * np.sqrt(1 - rho ** 2))
+                    a_bis = np.maximum(a, -arg_inf)
+                    return integrate.quad(integrand, a_bis, arg_inf, args = (X0_nt, mu_nt, sigma_nt, rho, B_T, K, T, type))[0] * dP_dQ
+                else:
+                    arg_inf = -np.sqrt(100 * T)
+                    b = (np.log((K - x)/ X0_nt) - mu_nt * T + sigma_nt ** 2 * T * 0.5 - rho * sigma_nt * B_T) / (sigma_nt * np.sqrt(1 - rho ** 2))
+                    b_bis = np.minimum(-arg_inf, b)
+                    return integrate.quad(integrand, arg_inf, b_bis, args = (X0_nt, mu_nt, sigma_nt, rho, B_T, K, T, type))[0] * dP_dQ
+            
+            def wrapping_function(x, mu_nt, sigma_nt, rho, B_T, K, T, X0_nt, dP_dQ,type,m):
+                 return G_delta(x, mu_nt, sigma_nt, rho, B_T, K, T, X0_nt, dP_dQ,type) - m            
+            x = np.zeros(len(B_T))
+            for i in range(len(x)):
+                left_bound = 0.0001
+                right_bound = 100
+                x0 = G_delta(left_bound, mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call)
+                if (self.m > x0):
+                    x[i] = 0
+                    continue
+                if self.call:
+                    while True:
+                        if(G_delta(right_bound, mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call) < self.m):
+                            break
+                        else:
+                            right_bound = 2 * right_bound
+                        if(right_bound > 10 ** 6):
+                            raise Exception("m too small")
+                else:
+                    right_bound = self.K - 0.0001
+                x[i] = (root_scalar(wrapping_function, args = (mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call, self.m), bracket= (left_bound, right_bound), method = "bisect", rtol= 0.1 ** 4).root)
+            return pd.Series(data = x)
 
+
+
+            
     def reset_MC_setup(self):
         self.MC_setup = self.underlying_t.simulate_Q(self.MC_setup_max, self.T)
     def get_MC_price(self, X0_rel_t, X0_rel_nt, t = 0, n_sims = 10000):
