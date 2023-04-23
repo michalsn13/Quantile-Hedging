@@ -19,21 +19,26 @@ class Trader:
             delta_curr = option.get_MC_delta(underlying_price, t)
             self.money = self.money - (delta_curr - self.delta) * underlying_price 
         self.delta = delta_curr
-    def simulate_hedging(self, option, reality, update_freq = 1, mode = 'standard', recalculate_m = True, verbose = False):
+    def simulate_hedging(self, option, reality, update_freq = 1, mode = 'standard', recalculate_m = True, verbose = False, invest_saved_money = (False,0)):
         if mode == 'quantile_traded':
-                new_payoff_func,objective_func, qh_boundary = payoff_from_v0(option, self.money, float(reality[0]))
-                if verbose:
-                    print(f'Quantile Hedging with V0={self.money:.2f} should result success probability = {objective_func[0]:.4} and success ratio = {objective_func[1]:.44}')
-                old_payoff_func = option.payoff_func
-                setattr(option, 'payoff_func', new_payoff_func)
+            if invest_saved_money[0]:
+                saved_money = invest_saved_money[1] - self.money
+            new_payoff_func,objective_func, qh_boundary = payoff_from_v0(option, self.money, float(reality[0]))
+            if verbose:
+                print(f'Quantile Hedging with V0={self.money:.2f} should result success probability = {objective_func[0]:.4} and success ratio = {objective_func[1]:.44}')
+            old_payoff_func = option.payoff_func
+            setattr(option, 'payoff_func', new_payoff_func)
         elif mode == 'quantile_nontraded':
+            if invest_saved_money[0]:
+                saved_money = invest_saved_money[1] - self.money
             if recalculate_m:
-                option.set_m(V0 = self.money, X0_t = reality[0].iloc[0,0], X0_nt = reality[1].iloc[0,0])
                 old_m = option.m
-                ##funkcja
+                option.set_m(V0 = self.money, X0_t = reality[0].iloc[0,0], X0_nt = reality[1].iloc[0,0])
             objective_func = (1,1)
             qh_boundary = None
         else:
+            if invest_saved_money[0]:
+                raise Exception ('In full hedging there is no saved money to be invested')
             objective_func = (1,1)
             qh_boundary = None
         values_per_expirance = option.underlying.values_per_year * option.T
@@ -64,6 +69,10 @@ class Trader:
         #payoff
         payoff = float(option.payoff_func(reality[1])) if mode == 'quantile_nontraded' else float(option.payoff_func(reality))
         self.money -= payoff
+
+        if invest_saved_money[0]:
+            self.money += saved_money*np.exp(option.underlying.r*option.T)
+
         money_historical.append(self.money)
         if verbose:
             print(f'Payoff of {payoff:.2f} paid to the option owner! Current status\n\tMONEY: {self.money:.2f}\n\tUNDERLYING: {self.delta:.4f}')
