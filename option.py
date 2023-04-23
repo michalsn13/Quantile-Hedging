@@ -49,10 +49,11 @@ class Vanilla(Option):
         if t > self.T:
             raise Exception(f'{t}> {self.T}: Pricing moment cannot exceed option expirancy moment T={self.T}')
         if t == self.T:
+            indicator = (X0_rel <= qh_boundary[0]) * (X0_rel >= qh_boundary[1]) if qh_boundary else 1
             if call:
-                return (X.iloc[:,-1] <= c1) * (X.iloc[:,-1] >= c2) * np.max(X0_rel - self.K, 0)
+                return indicator * np.max(X0_rel - self.K, 0)
             else:
-                return (X.iloc[:,-1] <= c1) * (X.iloc[:,-1] >= c2) * np.max(self.K - X0_rel, 0)
+                return indicator * np.max(self.K - X0_rel, 0)
         
         d1 = (np.log(X0_rel/self.K) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t))
         d2 = d1 - self.underlying.sigma * np.sqrt(self.T - t)
@@ -188,36 +189,32 @@ class Vanilla_on_NonTraded:
         delta = (price_plus - price_minus)/(2*dX)            
         return delta
 
-    def set_m(self, V0, X0_t, X0_nt, precision=0.1, max_iterations=100):
+    def set_m(self, V0, X0_t, X0_nt, precision=0.1, max_iterations=1000):
         m_curr_top = 0.2
+        self.m = m_curr_top
         m_curr_bot = 0.000001
-
-        i = 1
-
-        while self.get_MC_price(X0_t, X0_nt, m_curr_top) > V0:
+        i = 0
+        while self.get_MC_price(X0_t, X0_nt) > V0:
             if i > max_iterations:
                 raise Exception("Couldn't find m from given V0 during " + str(max_iterations) + " iterations")
             m_curr_bot = m_curr_top
             m_curr_top += 0.1
             i += 1
-
+            self.m = m_curr_top
         m = (m_curr_top + m_curr_bot) / 2
-
+        i = 0
         while True:
             if i > max_iterations:
                 raise Exception("Couldn't find m from given V0 during " + str(max_iterations) + " iterations")
-
-            V0_curr = self.get_MC_price(X0_t, X0_nt, m)
-
+            self.m = m
+            V0_curr = self.get_MC_price(X0_t, X0_nt)
             if abs(V0 - V0_curr) < precision:
                 self.m = m
                 break
-
             elif V0_curr < V0:
                 m_curr_top = m
                 m = (m + m_curr_bot) / 2
                 i += 1
-
             else:
                 m_curr_bot = m
                 m = (m_curr_top + m) / 2

@@ -28,9 +28,8 @@ class Trader:
                 setattr(option, 'payoff_func', new_payoff_func)
         elif mode == 'quantile_nontraded':
             if recalculate_m:
-                option.set_m(V0 = self.money, X0_t = reality[0].iloc[0,0], X0_nt = reality[1].iloc[0,0])
                 old_m = option.m
-                ##funkcja
+                option.set_m(V0 = self.money, X0_t = reality[0].iloc[0,0], X0_nt = reality[1].iloc[0,0])
             objective_func = (1,1)
             qh_boundary = None
         else:
