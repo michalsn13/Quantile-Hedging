@@ -63,7 +63,7 @@ class Trader:
             print(f'All of held underlying {"sold" if self.delta >=0 else "repaid"}! Current status\n\tMONEY: {self.money:.2f}\n\tUNDERLYING: {self.delta:.4f}')
         if mode == 'quantile_traded':
             setattr(option, 'payoff_func', old_payoff_func)
-        elif mode == 'quantile_nontraded' and recalculate_m:
+        elif mode == 'quantile_nontraded':
             setattr(option, 'm', old_m)            
         #payoff
         payoff = float(option.payoff_func(reality[1])) if mode == 'quantile_nontraded' else float(option.payoff_func(reality))
