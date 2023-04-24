@@ -53,10 +53,11 @@ class Vanilla(Option):
         if t > self.T:
             raise Exception(f'{t}> {self.T}: Pricing moment cannot exceed option expirancy moment T={self.T}')
         if t == self.T:
+            indicator = (X0_rel <= qh_boundary[0]) * (X0_rel >= qh_boundary[1]) if qh_boundary else 1
             if call:
-                return (X.iloc[:,-1] <= c1) * (X.iloc[:,-1] >= c2) * np.max(X0_rel - self.K, 0)
+                return indicator * np.max(X0_rel - self.K, 0)
             else:
-                return (X.iloc[:,-1] <= c1) * (X.iloc[:,-1] >= c2) * np.max(self.K - X0_rel, 0)
+                return indicator * np.max(self.K - X0_rel, 0)
         
         d1 = (np.log(X0_rel/self.K) + (self.underlying.r + 0.5 * self.underlying.sigma**2)*(self.T - t))/(self.underlying.sigma * np.sqrt(self.T - t))
         d2 = d1 - self.underlying.sigma * np.sqrt(self.T - t)
@@ -126,11 +127,7 @@ class Vanilla(Option):
         
             
 class Vanilla_on_NonTraded:
-<<<<<<< HEAD
-    def __init__(self, underlying, K, T, call, target_function = 1, MC_setup_max = 10000):
-=======
-    def __init__(self, underlying: NonTradedUnderlying, K, T, call, MC_setup_max = 10000):
->>>>>>> 7f3b0e8 (coMMIT)
+    def __init__(self, underlying, K, T, call, objective_func = 'success_prob', MC_setup_max = 10000):
         self.underlying = underlying
         self.K = K
         self.call = call
@@ -144,14 +141,8 @@ class Vanilla_on_NonTraded:
         self.T = T
         self.MC_setup_max = MC_setup_max
         self.MC_setup = self.underlying.simulate_together_Q(MC_setup_max, self.T)
-<<<<<<< HEAD
-        self.m = 1e-3
-        self.target_function = target_function
-
-=======
+        self.objective_func = objective_func
         self.m = 1e-5
-        
->>>>>>> 7f3b0e8 (coMMIT)
     def payoff_special(self, X_t, X0_nt):   
         X0_t = X_t.iloc[0,0]
         mu_t, sigma_t = self.underlying.underlying_t.mu, self.underlying.underlying_t.sigma
@@ -160,7 +151,7 @@ class Vanilla_on_NonTraded:
         r = self.underlying.r
         rho = self.underlying.rho
         dP_dQ = np.exp((mu_t - r) * B_T / sigma_t + (0.5 * self.T * ((mu_t - r) / sigma_t) ** 2))
-        if self.target_function == 1:
+        if self.objective_func == 'success_prob':
             a = 1
             b = 2 * sigma_nt ** 2 * self.T * (1 - rho ** 2) - 2 * np.log(X0_nt) - 2 * mu_nt * self.T + sigma_nt ** 2 * self.T - 2 * rho * sigma_nt * B_T
             c = np.log(self.m / dP_dQ  * sigma_nt * np.sqrt(2 * np.pi * self.T * (1 - rho ** 2))) * (2 * sigma_nt ** 2 * self.T * (1 - rho ** 2 )) + (-np.log(X0_nt) - mu_nt * self.T + sigma_nt ** 2 * self.T * 0.5 - rho * sigma_nt * B_T) ** 2 
@@ -177,53 +168,42 @@ class Vanilla_on_NonTraded:
             diff_x = dP_dQ * cdf_x - self.m * x
             diff_delta = dP_dQ * cdf_delta - self.m * 0.0001
             return x * (diff_delta <= diff_x) * (delta >= 0)
+        
+        
         else:
-            def G_delta(x, mu_nt, sigma_nt, rho, B_T, K, T, X0_nt, dP_dQ, type):
-                def integrand(y, X0_nt, mu_nt, sigma_nt, rho, B_T, K, T, type):
-                    if type:
+            def G_delta(x, mu_nt, sigma_nt, rho, B_T, K, T, X0_nt, dP_dQ, call):                                    
+                def integral_arg(y, X0_nt, mu_nt, sigma_nt, rho, B_T, K, T, call):
+                    if call:
                         return 1 / np.sqrt(np.pi * 2 * T) / (X0_nt * np.exp(mu_nt * T + sigma_nt * B_T * rho + np.sqrt(1 - rho ** 2) * sigma_nt * y - 0.5 * sigma_nt ** 2 * T) - K) * np.exp(y ** 2 / (-2 * T))
                     else:
-                        return 1 / np.sqrt(np.pi * 2 * T) / ( K - X0_nt * np.exp(mu_nt * T + sigma_nt * B_T * rho + np.sqrt(1 - rho ** 2) * sigma_nt * y - 0.5 * sigma_nt ** 2 * T)) * np.exp(y ** 2 / (-2 * T))
-                if type:
-                    arg_inf = np.sqrt(100 * T)
+                        return 1 / np.sqrt(np.pi * 2 * T) / ( K - X0_nt * np.exp(mu_nt * T + sigma_nt * B_T * rho + np.sqrt(1 - rho ** 2) * sigma_nt * y - 0.5 * sigma_nt ** 2 * T)) * np.exp(y ** 2 / (-2 * T))                
+                arg_inf = np.sqrt(100 * T)    
+                if call:
                     a = (np.log((K + x)/ X0_nt) - mu_nt * T + sigma_nt ** 2 * T * 0.5 - rho * sigma_nt * B_T) / (sigma_nt * np.sqrt(1 - rho ** 2))
-                    a_bis = np.maximum(a, -arg_inf)
-                    return integrate.quad(integrand, a_bis, arg_inf, args = (X0_nt, mu_nt, sigma_nt, rho, B_T, K, T, type))[0] * dP_dQ
+                    a_bis = np.maximum(a, - arg_inf)
+                    return dP_dQ * integrate.quad(integral_arg, a_bis, arg_inf, args = (X0_nt, mu_nt, sigma_nt, rho, B_T, K, T, call))[0]
                 else:
-                    arg_inf = -np.sqrt(100 * T)
                     b = (np.log((K - x)/ X0_nt) - mu_nt * T + sigma_nt ** 2 * T * 0.5 - rho * sigma_nt * B_T) / (sigma_nt * np.sqrt(1 - rho ** 2))
-                    b_bis = np.minimum(-arg_inf, b)
-                    return integrate.quad(integrand, arg_inf, b_bis, args = (X0_nt, mu_nt, sigma_nt, rho, B_T, K, T, type))[0] * dP_dQ
+                    b_bis = np.minimum(arg_inf, b)
+                    return dP_dQ * integrate.quad(integral_arg, -arg_inf, b_bis, args = (X0_nt, mu_nt, sigma_nt, rho, B_T, K, T, call))[0]
             
-            def wrapping_function(x, mu_nt, sigma_nt, rho, B_T, K, T, X0_nt, dP_dQ,type,m):
-                 return G_delta(x, mu_nt, sigma_nt, rho, B_T, K, T, X0_nt, dP_dQ,type) - m            
-            x = np.zeros(len(B_T))
-            for i in range(len(x)):
-                left_bound = 0.0001
-                right_bound = 100
-                x0 = G_delta(left_bound, mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call)
-                if (self.m > x0):
-                    x[i] = 0
-                    continue
-                if self.call:
-                    while True:
-                        if(G_delta(right_bound, mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call) < self.m):
-                            break
-                        else:
-                            right_bound = 2 * right_bound
-                        if(right_bound > 10 ** 6):
-                            raise Exception("m too small")
-                else:
-                    right_bound = self.K - 0.0001
-                x[i] = (root_scalar(wrapping_function, args = (mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call, self.m), bracket= (left_bound, right_bound), method = "bisect", rtol= 0.1 ** 4).root)
+            def wrapping_function(x, mu_nt, sigma_nt, rho, B_T, K, T, X0_nt, dP_dQ,call,m):
+                 return G_delta(x, mu_nt, sigma_nt, rho, B_T, K, T, X0_nt, dP_dQ,call) - m          
+            def f(i):
+                m0 = G_delta(0, mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call)
+                if self.m > m0:
+                    return 0
+                return root_scalar(wrapping_function, args = (mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call, self.m), bracket= (0, 1000 if self.call else self.K - 0.1), method = "bisect", rtol= 0.1).root
+            
+            x =list(map(f, np.arange(0,len(B_T))))
             return pd.Series(data = x)
-
-
 
             
     def reset_MC_setup(self):
-        self.MC_setup = self.underlying_t.simulate_Q(self.MC_setup_max, self.T)
+        self.MC_setup = self.underlying.simulate_together_Q(MC_setup_max, self.T)
     def get_MC_price(self, X0_rel_t, X0_rel_nt, t = 0, n_sims = 10000):
+        if self.objective_func == 'success_ratio':
+            n_sims = 100
         if t > self.T:
             raise Exception(f'{t}> {self.T}: Pricing moment cannot exceed option expirancy moment T={self.T}')
         if self.MC_setup_max < n_sims:
@@ -246,36 +226,31 @@ class Vanilla_on_NonTraded:
         delta = (price_plus - price_minus)/(2*dX)            
         return delta
 
-    def set_m(self, V0, X0_t, X0_nt, precision=0.1, max_iterations=100):
+    def set_m(self, V0, X0_t, X0_nt, precision_perc = 0.1, max_iterations=1000):
         m_curr_top = 0.2
-        m_curr_bot = 0.000001
-
-        i = 1
-
-        while self.get_MC_price(X0_t, X0_nt, m_curr_top) > V0:
+        m_curr_bot = 0.00001
+        self.m = m_curr_top
+        i = 0
+        while self.get_MC_price(X0_t, X0_nt) > V0:
             if i > max_iterations:
                 raise Exception("Couldn't find m from given V0 during " + str(max_iterations) + " iterations")
             m_curr_bot = m_curr_top
             m_curr_top += 0.1
             i += 1
-
         m = (m_curr_top + m_curr_bot) / 2
-
+        i = 0
         while True:
             if i > max_iterations:
                 raise Exception("Couldn't find m from given V0 during " + str(max_iterations) + " iterations")
-
-            V0_curr = self.get_MC_price(X0_t, X0_nt, m)
-
-            if abs(V0 - V0_curr) < precision:
+            self.m = m
+            V0_curr = self.get_MC_price(X0_t, X0_nt)
+            if abs(V0 - V0_curr) < precision_perc * V0:
                 self.m = m
                 break
-
             elif V0_curr < V0:
                 m_curr_top = m
                 m = (m + m_curr_bot) / 2
                 i += 1
-
             else:
                 m_curr_bot = m
                 m = (m_curr_top + m) / 2
