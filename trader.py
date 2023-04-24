@@ -19,7 +19,7 @@ class Trader:
             delta_curr = option.get_MC_delta(underlying_price, t)
             self.money = self.money - (delta_curr - self.delta) * underlying_price 
         self.delta = delta_curr
-    def simulate_hedging(self, option, reality, update_freq = 1, mode = 'standard', recalculate_m = True, verbose = False, invest_saved_money = (False,0)):
+    def simulate_hedging(self, option, reality, update_freq = 1, mode = 'standard', verbose = False, invest_saved_money = (False,0)):
         if mode == 'quantile_traded':
             if invest_saved_money[0]:
                 saved_money = invest_saved_money[1] - self.money
@@ -31,10 +31,9 @@ class Trader:
         elif mode == 'quantile_nontraded':
             if invest_saved_money[0]:
                 saved_money = invest_saved_money[1] - self.money
-            if recalculate_m:
-                old_m = option.m
-                option.set_m(V0 = self.money, X0_t = reality[0].iloc[0,0], X0_nt = reality[1].iloc[0,0])
-            objective_func = (1,1)
+            old_m = option.m
+            option.set_m(V0 = self.money, X0_t = reality[0].iloc[0,0], X0_nt = reality[1].iloc[0,0])
+            objective_func = ('not defined','not defined')
             qh_boundary = None
         else:
             if invest_saved_money[0]:
@@ -64,7 +63,7 @@ class Trader:
             print(f'All of held underlying {"sold" if self.delta >=0 else "repaid"}! Current status\n\tMONEY: {self.money:.2f}\n\tUNDERLYING: {self.delta:.4f}')
         if mode == 'quantile_traded':
             setattr(option, 'payoff_func', old_payoff_func)
-        elif mode == 'quantile_nontraded' and recalculate_m:
+        elif mode == 'quantile_nontraded':
             setattr(option, 'm', old_m)            
         #payoff
         payoff = float(option.payoff_func(reality[1])) if mode == 'quantile_nontraded' else float(option.payoff_func(reality))
