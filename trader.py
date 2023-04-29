@@ -69,6 +69,12 @@ class Trader:
         payoff = float(option.payoff_func(reality[1])) if mode == 'quantile_nontraded' else float(option.payoff_func(reality))
         self.money -= payoff
 
+        if self.money + self.delta * float(reality.iloc[:,-1]) > payoff or payoff == 0:
+            objective_func = (1,1)
+
+        else:
+            objective_func = (0, (self.money + self.delta * float(reality.iloc[:,-1]) - payoff) / payoff)
+
         if invest_saved_money[0]:
             self.money += saved_money*np.exp(option.underlying.r*option.T)
 
