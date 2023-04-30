@@ -32,7 +32,8 @@ class Option:
         rho = np.sum((payoffs-payoffs_mean)*(B.iloc[:,-1]-0))/(payoffs.shape[0]-1)
         price = payoffs_mean - rho/self.T * (MC_B - 0)
         return discount * price
-    def get_MC_delta(self, X0_rel, t = 0, dX = 10, n_sims = 10000):
+    def get_MC_delta(self, X0_rel, t = 0, n_sims = 10000):
+        dX = 0.1 * X0_rel
         price_minus = self.get_MC_price(X0_rel-dX, t, n_sims)
         price_plus = self.get_MC_price(X0_rel+dX, t, n_sims)
         delta = (price_plus - price_minus)/(2*dX)
@@ -127,7 +128,7 @@ class Vanilla(Option):
         
             
 class Vanilla_on_NonTraded:
-    def __init__(self, underlying, K, T, call, objective_func = 'success_prob', MC_setup_max = 10000):
+    def __init__(self, underlying, K, T, call, objective_func = 'success_prob', MC_setup_max = 50000):
         self.underlying = underlying
         self.K = K
         self.call = call
@@ -193,15 +194,15 @@ class Vanilla_on_NonTraded:
                 m0 = G_delta(0, mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call)
                 if self.m > m0:
                     return 0
-                return root_scalar(wrapping_function, args = (mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call, self.m), bracket= (0, 1000 if self.call else self.K - 0.1), method = "bisect", rtol= 0.1).root
+                return root_scalar(wrapping_function, args = (mu_nt, sigma_nt, rho, B_T[i], self.K, self.T, X0_nt, dP_dQ[i], self.call, self.m), bracket= (0, 1000 if self.call else self.K - 0.1), method = "bisect", rtol= 0.00001).root
             
             x =list(map(f, np.arange(0,len(B_T))))
             return pd.Series(data = x)
 
             
     def reset_MC_setup(self):
-        self.MC_setup = self.underlying.simulate_together_Q(MC_setup_max, self.T)
-    def get_MC_price(self, X0_rel_t, X0_rel_nt, t = 0, n_sims = 10000):
+        self.MC_setup = self.underlying.simulate_together_Q(self.MC_setup_max, self.T)
+    def get_MC_price(self, X0_rel_t, X0_rel_nt, t = 0, n_sims = 50000):
         if self.objective_func == 'success_ratio':
             n_sims = 100
         if t > self.T:
@@ -220,13 +221,14 @@ class Vanilla_on_NonTraded:
         rho = np.sum((payoffs-payoffs_mean)*(B_t.iloc[:,-1]-0))/(payoffs.shape[0]-1)
         price = payoffs_mean - rho/self.T * (MC_B - 0)
         return discount * price
-    def get_MC_delta(self, X0_rel_t, X0_rel_nt, t = 0, dX = 10, n_sims = 10000):
-        price_minus = self.get_MC_price(X0_rel_t, X0_rel_nt - dX, t, n_sims)
-        price_plus = self.get_MC_price(X0_rel_t, X0_rel_nt + dX, t, n_sims)
+    def get_MC_delta(self, X0_rel_t, X0_rel_nt, t = 0, n_sims = 50000):
+        dX = 0.1 * X0_rel_nt
+        price_minus = self.get_MC_price(X0_rel_t, X0_rel_nt  - dX, t, n_sims)
+        price_plus = self.get_MC_price(X0_rel_t, X0_rel_nt  + dX, t, n_sims)
         delta = (price_plus - price_minus)/(2*dX)            
         return delta
 
-    def set_m(self, V0, X0_t, X0_nt, precision_perc = 0.1, max_iterations=1000):
+    def set_m(self, V0, X0_t, X0_nt, precision_perc = 0.1, max_iterations=10000):
         m_curr_top = 0.2
         m_curr_bot = 0.00001
         self.m = m_curr_top

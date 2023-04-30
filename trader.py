@@ -23,7 +23,7 @@ class Trader:
         if mode == 'quantile_traded':
             if invest_saved_money[0]:
                 saved_money = invest_saved_money[1] - self.money
-            new_payoff_func,objective_func, qh_boundary = payoff_from_v0(option, self.money, float(reality[0]))
+            new_payoff_func,_, qh_boundary = payoff_from_v0(option, self.money, float(reality[0]))
             if verbose:
                 print(f'Quantile Hedging with V0={self.money:.2f} should result success probability = {objective_func[0]:.4} and success ratio = {objective_func[1]:.44}')
             old_payoff_func = option.payoff_func
@@ -69,11 +69,11 @@ class Trader:
         payoff = float(option.payoff_func(reality[1])) if mode == 'quantile_nontraded' else float(option.payoff_func(reality))
         self.money -= payoff
 
-        if self.money + self.delta * float(reality.iloc[:,-1]) > payoff or payoff == 0:
+        if self.money > 0 or payoff == 0:
             objective_func = (1,1)
 
         else:
-            objective_func = (0, (self.money + self.delta * float(reality.iloc[:,-1]) - payoff) / payoff)
+            objective_func = (0, self.money / payoff)
 
         if invest_saved_money[0]:
             self.money += saved_money*np.exp(option.underlying.r*option.T)
@@ -83,3 +83,7 @@ class Trader:
             print(f'Payoff of {payoff:.2f} paid to the option owner! Current status\n\tMONEY: {self.money:.2f}\n\tUNDERLYING: {self.delta:.4f}')
         
         return money_historical, delta_historical, objective_func
+
+def trader_loop(i, option, V0, sims_t, sims_nt):
+    trader = Trader(initial_capital = V0)
+    return trader.simulate_hedging(option, [sims_t.iloc[[i],:], sims_nt.iloc[[i],:]], update_freq = 1, mode = 'quantile_nontraded')

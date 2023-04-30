@@ -21,14 +21,15 @@ def payoff_from_v0(option, init_capital, X0, n_sims = 10000):
     
     hedge_prob = init_capital / BS_Price
     old_payoff = option.payoff_func
-    if (option.underlying.mu - option.underlying.r) <= option.underlying.sigma**2:
+    condition = option.payoff_func(X0 * X.loc[X.iloc[:,[-1]].idxmin()]).values[0] < option.payoff_func(X0 * X.loc[X.iloc[:,[-1]].idxmax()]).values[0]
+    if ((option.underlying.mu - option.underlying.r) <= option.underlying.sigma**2 and condition) or ((option.underlying.mu - option.underlying.r) > option.underlying.sigma**2 and not condition):
         index = (full['dQstar_dP'].cumsum() / n_sims <= hedge_prob).sum()
         success_prob = index/n_sims
         if index == 0:
             raise Exception('You cannot perform any hedging with so little initial capital')
 
         c = (X0*full['X']).iloc[index - 1]
-        if (c < (X0*full['X']).iloc[-1]) or (c > (X0*full['X']).iloc[0]):
+        if condition:
             X_fail = X.loc[(X0*X).iloc[:,-1] > c]
             H = old_payoff((X0*X_fail))
             VT_H = ((H - (BS_Price - init_capital) * np.exp(option.underlying.r * option.T))/H).sum() / X.shape[0]
