@@ -3,7 +3,7 @@ Project made for Advanced Financial Engineering course during 2022/23 summer sem
 ## What is Quantile Hedging?
 The concept of Quantile Hedging comes from the idea of $\Delta$-hedging options in Black Scholes market assuptions without using the entire capital required 
 for a full hedge(Black Scholes price of an option). Then, from a theoretical perspective we cannot secure ourselves from all scenarios and therefore
-we only consider a given quantile of possibilities to be prepared for. In this circumstances, for given ammount of money (<Black-Scholes requirements for a full hedge) 
+we only consider a given quantile of possibilities to be prepared for. In this circumstances, for given ammount of money (Black-Scholes requirements for a full hedge) 
 you can optimize the quantile itself (be prepared to as many plausible scenarios as possible) or additionally consider how much capital was missing in those not considered scenarios.
 Idea behind Quantile Hedging approach is heavily based on a theoretical paper: *Quantile Hedging* by Hans Follmer and Peter Leukert.
 ## Short Decription of the project
